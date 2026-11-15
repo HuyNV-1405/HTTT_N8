@@ -1,0 +1,208 @@
+export type Role = 'ADMIN' | 'QUAN_LY_KHO' | 'NHAN_VIEN_KHO' | 'NHAN_VIEN_MUA_HANG' | 'NHAN_VIEN_BAN_HANG';
+export type TrangThaiPhieu = 'PENDING' | 'APPROVED' | 'REJECTED';
+export type TrangThaiViTri = 'EMPTY' | 'PARTIAL' | 'FULL' | 'MAINTENANCE';
+export type LoaiCanhBao = 'HET_HANG' | 'DUOI_MUC_TOI_THIEU' | 'VUOT_MUC_TOI_DA' | 'CHENH_LECH_KIEM_KE';
+
+export interface User {
+  id: string;
+  maNV: string;
+  username: string;
+  hoTen: string;
+  email?: string;
+  sdt?: string;
+  role: Role;
+}
+
+export interface LoaiHang {
+  id: string;
+  maLoai: string;
+  tenLoai: string;
+  moTa?: string;
+}
+
+export interface NhaCungCap {
+  id: string;
+  maNCC: string;
+  tenNCC: string;
+  sdt: string;
+  diaChi?: string;
+  nguoiLienHe?: string;
+}
+
+export interface KhachHang {
+  id: string;
+  maKH: string;
+  tenKH: string;
+  sdt: string;
+  diaChi?: string;
+}
+
+export interface Product {
+  id: string;
+  maHH: string;
+  tenHH: string;
+  donViTinh: string;
+  giaNhap: number;
+  giaXuat: number;
+  dinhMucToiThieu: number;
+  dinhMucToiDa: number;
+  loaiHangId: string;
+  nhaCungCapId?: string;
+  moTa?: string;
+  tongTon: number;
+  tongKhaDung: number;
+  loaiHang?: LoaiHang;
+  nhaCungCap?: NhaCungCap;
+  canhBao?: {
+    isUnderMin: boolean;
+    isOverMax: boolean;
+    isOutOfStock: boolean;
+  };
+  tonKho?: TonKhoItem[];
+}
+
+export interface Kho {
+  id: string;
+  maKho: string;
+  tenKho: string;
+  diaChi: string;
+}
+
+export interface KhuVuc {
+  id: string;
+  maKhuVuc: string;
+  tenKhuVuc: string;
+  khoId: string;
+}
+
+export interface ViTriLuuTru {
+  id: string;
+  maViTri: string;
+  khoId: string;
+  khuVucId: string;
+  ke: string;
+  tang: string;
+  o: string;
+  sucChua: number;
+  trangThai: TrangThaiViTri;
+  currentStoredQty?: number;
+  occupancyRate?: number;
+  kho?: Kho;
+  khuVuc?: KhuVuc;
+  tonKho?: {
+    id: string;
+    hangHoaId: string;
+    soLuongTon: number;
+    hangHoa: Product;
+  }[];
+}
+
+export interface TonKhoItem {
+  id: string;
+  khoId: string;
+  hangHoaId: string;
+  viTriId: string;
+  soLuongTon: number;
+  soLuongKhaDung: number;
+  soLuongTamGiu: number;
+  kho: Kho;
+  hangHoa: Product;
+  viTri: ViTriLuuTru;
+}
+
+export interface ReceiptItem {
+  id?: string;
+  hangHoaId: string;
+  viTriId: string;
+  slYeuCau: number;
+  slThucNhap: number;
+  donGiaNhap: number;
+  thanhTien?: number;
+  hangHoa?: Product;
+  viTri?: ViTriLuuTru;
+}
+
+export interface Receipt {
+  id: string;
+  maPN: string;
+  ngayNhap: string;
+  khoId: string;
+  nhaCungCapId: string;
+  nguoiLapId: string;
+  nguoiDuyetId?: string;
+  ngayDuyet?: string;
+  trangThai: TrangThaiPhieu;
+  ketQuaKiemTra?: string;
+  tongTien: number;
+  ghiChu?: string;
+  kho: Kho;
+  nhaCungCap: NhaCungCap;
+  nguoiLap: User;
+  nguoiDuyet?: User;
+  chiTiet: ReceiptItem[];
+}
+
+export interface DispatchItem {
+  id?: string;
+  hangHoaId: string;
+  viTriId: string;
+  slYeuCau: number;
+  slThucXuat: number;
+  donGiaXuat: number;
+  thanhTien?: number;
+  hangHoa?: Product;
+  viTri?: ViTriLuuTru;
+}
+
+export interface Dispatch {
+  id: string;
+  maPX: string;
+  ngayXuat: string;
+  khoId: string;
+  khachHangId: string;
+  nguoiLapId: string;
+  nguoiDuyetId?: string;
+  ngayDuyet?: string;
+  trangThai: TrangThaiPhieu;
+  lyDoXuat: string;
+  tongTien: number;
+  ghiChu?: string;
+  kho: Kho;
+  khachHang: KhachHang;
+  nguoiLap: User;
+  nguoiDuyet?: User;
+  chiTiet: DispatchItem[];
+}
+
+export interface CanhBao {
+  id: string;
+  khoId: string;
+  hangHoaId: string;
+  loaiCanhBao: LoaiCanhBao;
+  mucTonHienTai: number;
+  mucTonToiThieu: number;
+  mucTonToiDa: number;
+  trangThai: 'CHUA_XU_LY' | 'DA_XU_LY';
+  noiDung: string;
+  ngayTao: string;
+  kho: Kho;
+  hangHoa: Product;
+}
+
+export interface DashboardStats {
+  overview: {
+    totalProducts: number;
+    totalWarehouses: number;
+    totalStockQty: number;
+    totalStockValue: number;
+    alertCount: number;
+    pendingReceipts: number;
+    pendingDispatches: number;
+  };
+  alerts: CanhBao[];
+  recentTransactions: {
+    receipts: Receipt[];
+    dispatches: Dispatch[];
+  };
+}
+

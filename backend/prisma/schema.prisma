@@ -1,0 +1,483 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ========================================================
+// ENUMS (Định nghĩa các tập giá trị chuẩn hệ thống)
+// ========================================================
+
+enum Role {
+  ADMIN              // Quản trị viên hệ thống
+  QUAN_LY_KHO        // Quản lý kho (Phê duyệt phiếu, điều phối)
+  NHAN_VIEN_KHO      // Nhân viên kho (Thực hiện nhập, xuất, kiểm đếm)
+  NHAN_VIEN_MUA_HANG // Nhân viên mua hàng (Quản lý NCC, tạo yêu cầu nhập)
+  NHAN_VIEN_BAN_HANG // Nhân viên kinh doanh (Tạo yêu cầu xuất)
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum TrangThaiViTri {
+  EMPTY       // Ô trống
+  PARTIAL     // Đang chứa một phần
+  FULL        // Đầy sức chứa
+  MAINTENANCE // Đang sửa chữa / bảo trì
+}
+
+enum TrangThaiPhieu {
+  PENDING  // Chờ phê duyệt (Chưa tác động tồn kho)
+  APPROVED // Đã duyệt / Hoàn tất (Đã kích hoạt Transaction cập nhật tồn kho)
+  REJECTED // Bị từ chối
+}
+
+enum LoaiChuyenKho {
+  NOI_BO_KHO  // Chuyển giữa các vị trí trong cùng 1 kho
+  LIEN_KHO    // Điều chuyển giữa 2 kho khác nhau
+}
+
+enum TrangThaiKiemKe {
+  DANG_KIEM_KE // Đang kiểm kê
+  DA_CAN_BANG  // Đã cân bằng số liệu vào sổ kho
+  DA_HUY       // Hủy phiếu kiểm kê
+}
+
+enum LoaiCanhBao {
+  HET_HANG           // Tồn kho = 0
+  DUOI_MUC_TOI_THIEU // Tồn kho < Định mức tối thiểu
+  VUOT_MUC_TOI_DA    // Tồn kho > Định mức tối đa
+  CHENH_LECH_KIEM_KE // Chênh lệch giữa sổ sách và thực tế
+}
+
+enum TrangThaiCanhBao {
+  CHUA_XU_LY
+  DA_XU_LY
+}
+
+// ========================================================
+// 1. NGƯỜI DÙNG & PHÂN QUYỀN (User & Access Control)
+// ========================================================
+
+model User {
+  id          String     @id @default(uuid())
+  maNV        String     @unique // Mã nhân viên: NV001, ADMIN01...
+  username    String     @unique
+  password    String     // Mật khẩu băm Bcrypt
+  hoTen       String
+  email       String?    @unique
+  sdt         String?
+  role        Role       @default(NHAN_VIEN_KHO)
+  trangThai   UserStatus @default(ACTIVE)
+  ngayTao     DateTime   @default(now())
+  ngayCapNhat DateTime   @updatedAt
+
+  // Quan hệ
+  khoQuanLy        Kho[]              @relation("NguoiQuanLyKho")
+  phieuNhapLap     PhieuNhapKho[]     @relation("NguoiLapPhieuNhap")
+  phieuNhapDuyet   PhieuNhapKho[]     @relation("NguoiDuyetPhieuNhap")
+  phieuXuatLap     PhieuXuatKho[]     @relation("NguoiLapPhieuXuat")
+  phieuXuatDuyet   PhieuXuatKho[]     @relation("NguoiDuyetPhieuXuat")
+  phieuChuyenLap   PhieuChuyenKho[] @relation("NguoiLapPhieuChuyen")
+  phieuChuyenDuyet PhieuChuyenKho[] @relation("NguoiDuyetPhieuChuyen")
+  phieuKiemKe      PhieuKiemKe[]      @relation("NguoiKiemKe")
+  lichSuThaoTac    LichSuThaoTac[]
+
+  @@map("users")
+}
+
+// ========================================================
+// 2. DỮ LIỆU DANH MỤC & ĐỐI TÁC (Master Data)
+// ========================================================
+
+model NhaCungCap {
+  id          String   @id @default(uuid())
+  maNCC       String   @unique // NCC001...
+  tenNCC      String
+  sdt         String
+  email       String?
+  diaChi      String?
+  nguoiLienHe String?
+  trangThai   Boolean  @default(true)
+  ngayTao     DateTime @default(now())
+  ngayCapNhat DateTime @updatedAt
+
+  hangHoa   HangHoa[]
+  phieuNhap PhieuNhapKho[]
+
+  @@map("nha_cung_cap")
+}
+
+model KhachHang {
+  id          String   @id @default(uuid())
+  maKH        String   @unique // KH001...
+  tenKH       String
+  sdt         String
+  email       String?
+  diaChi      String?
+  trangThai   Boolean  @default(true)
+  ngayTao     DateTime @default(now())
+  ngayCapNhat DateTime @updatedAt
+
+  phieuXuat PhieuXuatKho[]
+
+  @@map("khach_hang")
+}
+
+model LoaiHang {
+  id          String   @id @default(uuid())
+  maLoai      String   @unique // LH01...
+  tenLoai     String   // Tên danh mục/nhóm hàng
+  moTa        String?
+  ngayTao     DateTime @default(now())
+  ngayCapNhat DateTime @updatedAt
+
+  hangHoa HangHoa[]
+
+  @@map("loai_hang")
+}
+
+model HangHoa {
+  id              String   @id @default(uuid())
+  maHH            String   @unique // SP001...
+  tenHH           String
+  donViTinh       String   // Cái, Hộp, Thùng, Kg, Chiếc...
+  giaNhap         Decimal  @default(0) @db.Decimal(15, 2)
+  giaXuat         Decimal  @default(0) @db.Decimal(15, 2)
+  dinhMucToiThieu Int      @default(10) // Cảnh báo khi tồn kho < mức này
+  dinhMucToiDa    Int      @default(1000) // Cảnh báo khi tồn kho > mức này
+  hinhAnh         String?
+  moTa            String?
+  trangThai       Boolean  @default(true)
+  loaiHangId      String
+  nhaCungCapId    String?
+  ngayTao         DateTime @default(now())
+  ngayCapNhat     DateTime @updatedAt
+
+  // Quan hệ
+  loaiHang      LoaiHang             @relation(fields: [loaiHangId], references: [id], onDelete: Restrict)
+  nhaCungCap    NhaCungCap?          @relation(fields: [nhaCungCapId], references: [id], onDelete: SetNull)
+  tonKho        TonKho[]
+  chiTietNhap   ChiTietNhapKho[]
+  chiTietXuat   ChiTietXuatKho[]
+  chiTietChuyen ChiTietChuyenKho[]
+  chiTietKiemKe ChiTietKiemKe[]
+  canhBao       CanhBaoTonKho[]
+
+  @@map("hang_hoa")
+}
+
+// ========================================================
+// 3. SƠ ĐỒ VỊ TRÍ LƯU TRỮ (Storage Hierarchy: Kho -> Khu vực -> Kệ -> Tầng -> Ô)
+// ========================================================
+
+model Kho {
+  id            String   @id @default(uuid())
+  maKho         String   @unique // KHO_TONG...
+  tenKho        String
+  diaChi        String
+  nguoiQuanLyId String?
+  trangThai     Boolean  @default(true)
+  ngayTao       DateTime @default(now())
+  ngayCapNhat   DateTime @updatedAt
+
+  // Quan hệ
+  nguoiQuanLy      User?              @relation("NguoiQuanLyKho", fields: [nguoiQuanLyId], references: [id], onDelete: SetNull)
+  khuVuc           KhuVuc[]
+  viTriLuuTru      ViTriLuuTru[]
+  tonKho           TonKho[]
+  phieuNhap        PhieuNhapKho[]
+  phieuXuat        PhieuXuatKho[]
+  phieuChuyenNguon PhieuChuyenKho[] @relation("KhoNguon")
+  phieuChuyenDich  PhieuChuyenKho[] @relation("KhoDich")
+  phieuKiemKe      PhieuKiemKe[]
+  canhBao          CanhBaoTonKho[]
+
+  @@map("kho")
+}
+
+model KhuVuc {
+  id          String   @id @default(uuid())
+  maKhuVuc    String   // KV-A, KV-B...
+  tenKhuVuc   String   // Khu Điện Máy, Khu Gia Dụng...
+  khoId       String
+  moTa        String?
+  ngayTao     DateTime @default(now())
+  ngayCapNhat DateTime @updatedAt
+
+  kho         Kho           @relation(fields: [khoId], references: [id], onDelete: Cascade)
+  viTriLuuTru ViTriLuuTru[]
+
+  @@unique([khoId, maKhuVuc])
+  @@map("khu_vuc")
+}
+
+model ViTriLuuTru {
+  id          String         @id @default(uuid())
+  maViTri     String         @unique // Ví dụ: KHO-A-K1-T1-O1
+  khoId       String
+  khuVucId    String
+  ke          String         // Kệ: K1, K2...
+  tang        String         // Tầng: T1, T2...
+  o           String         // Ô: O1, O2...
+  sucChua     Int            @default(100) // Sức chứa tối đa (SL sản phẩm)
+  trangThai   TrangThaiViTri @default(EMPTY)
+  moTa        String?
+  ngayTao     DateTime       @default(now())
+  ngayCapNhat DateTime       @updatedAt
+
+  kho              Kho                  @relation(fields: [khoId], references: [id], onDelete: Cascade)
+  khuVuc           KhuVuc               @relation(fields: [khuVucId], references: [id], onDelete: Cascade)
+  tonKho           TonKho[]
+  chiTietNhap      ChiTietNhapKho[]
+  chiTietXuat      ChiTietXuatKho[]
+  chiTietChuyenDi  ChiTietChuyenKho[] @relation("ViTriDi")
+  chiTietChuyenDen ChiTietChuyenKho[] @relation("ViTriDen")
+  chiTietKiemKe    ChiTietKiemKe[]
+
+  @@map("vi_tri_luu_tru")
+}
+
+// ========================================================
+// 4. SỔ TỒN KHO (Inventory Management by Location)
+// ========================================================
+
+model TonKho {
+  id             String   @id @default(uuid())
+  khoId          String
+  hangHoaId      String
+  viTriId        String
+  soLuongTon     Int      @default(0) // Số lượng thực tế
+  soLuongKhaDung Int      @default(0) // Tồn kho có thể xuất (soLuongTon - soLuongTamGiu)
+  soLuongTamGiu  Int      @default(0) // Đang giữ bởi các phiếu chờ duyệt
+  ngayCapNhat    DateTime @updatedAt
+
+  kho     Kho         @relation(fields: [khoId], references: [id], onDelete: Cascade)
+  hangHoa HangHoa     @relation(fields: [hangHoaId], references: [id], onDelete: Cascade)
+  viTri   ViTriLuuTru @relation(fields: [viTriId], references: [id], onDelete: Cascade)
+
+  @@unique([khoId, hangHoaId, viTriId])
+  @@map("ton_kho")
+}
+
+// ========================================================
+// 5. GIAO DỊCH NHẬP KHO (Goods Receipt)
+// ========================================================
+
+model PhieuNhapKho {
+  id            String         @id @default(uuid())
+  maPN          String         @unique // PN-202611-001
+  ngayNhap      DateTime       @default(now())
+  khoId         String
+  nhaCungCapId  String
+  nguoiLapId    String
+  nguoiDuyetId  String?
+  ngayDuyet     DateTime?
+  trangThai     TrangThaiPhieu @default(PENDING)
+  ketQuaKiemTra String?        // Đạt chuẩn nhập kho, Đã kiểm đủ số lượng...
+  tongTien      Decimal        @default(0) @db.Decimal(15, 2)
+  ghiChu        String?
+  ngayTao       DateTime       @default(now())
+  ngayCapNhat   DateTime       @updatedAt
+
+  kho        Kho              @relation(fields: [khoId], references: [id], onDelete: Restrict)
+  nhaCungCap NhaCungCap       @relation(fields: [nhaCungCapId], references: [id], onDelete: Restrict)
+  nguoiLap   User             @relation("NguoiLapPhieuNhap", fields: [nguoiLapId], references: [id], onDelete: Restrict)
+  nguoiDuyet User?            @relation("NguoiDuyetPhieuNhap", fields: [nguoiDuyetId], references: [id], onDelete: SetNull)
+  chiTiet    ChiTietNhapKho[]
+
+  @@map("phieu_nhap_kho")
+}
+
+model ChiTietNhapKho {
+  id          String   @id @default(uuid())
+  phieuNhapId String
+  hangHoaId   String
+  viTriId     String   // Vị trí lưu kho được chỉ định
+  slYeuCau    Int
+  slThucNhap  Int
+  donGiaNhap  Decimal  @db.Decimal(15, 2)
+  thanhTien   Decimal  @db.Decimal(15, 2)
+  ghiChu      String?
+
+  phieuNhap PhieuNhapKho @relation(fields: [phieuNhapId], references: [id], onDelete: Cascade)
+  hangHoa   HangHoa      @relation(fields: [hangHoaId], references: [id], onDelete: Restrict)
+  viTri     ViTriLuuTru  @relation(fields: [viTriId], references: [id], onDelete: Restrict)
+
+  @@map("chi_tiet_nhap_kho")
+}
+
+// ========================================================
+// 6. GIAO DỊCH XUẤT KHO (Goods Dispatch)
+// ========================================================
+
+model PhieuXuatKho {
+  id           String         @id @default(uuid())
+  maPX         String         @unique // PX-202611-001
+  ngayXuat     DateTime       @default(now())
+  khoId        String
+  khachHangId  String
+  nguoiLapId   String
+  nguoiDuyetId String?
+  ngayDuyet    DateTime?
+  trangThai    TrangThaiPhieu @default(PENDING)
+  lyDoXuat     String         // Xuất bán, Xuất trả bảo hành, Xuất hủy...
+  tongTien     Decimal        @default(0) @db.Decimal(15, 2)
+  ghiChu       String?
+  ngayTao      DateTime       @default(now())
+  ngayCapNhat  DateTime       @updatedAt
+
+  kho         Kho              @relation(fields: [khoId], references: [id], onDelete: Restrict)
+  khachHang   KhachHang        @relation(fields: [khachHangId], references: [id], onDelete: Restrict)
+  nguoiLap    User             @relation("NguoiLapPhieuXuat", fields: [nguoiLapId], references: [id], onDelete: Restrict)
+  nguoiDuyet  User?            @relation("NguoiDuyetPhieuXuat", fields: [nguoiDuyetId], references: [id], onDelete: SetNull)
+  chiTiet     ChiTietXuatKho[]
+
+  @@map("phieu_xuat_kho")
+}
+
+model ChiTietXuatKho {
+  id          String   @id @default(uuid())
+  phieuXuatId String
+  hangHoaId   String
+  viTriId     String   // Vị trí lấy hàng
+  slYeuCau    Int
+  slThucXuat  Int
+  donGiaXuat  Decimal  @db.Decimal(15, 2)
+  thanhTien   Decimal  @db.Decimal(15, 2)
+  ghiChu      String?
+
+  phieuXuat PhieuXuatKho @relation(fields: [phieuXuatId], references: [id], onDelete: Cascade)
+  hangHoa   HangHoa      @relation(fields: [hangHoaId], references: [id], onDelete: Restrict)
+  viTri     ViTriLuuTru  @relation(fields: [viTriId], references: [id], onDelete: Restrict)
+
+  @@map("chi_tiet_xuat_kho")
+}
+
+// ========================================================
+// 7. GIAO DỊCH CHUYỂN KHO / CHUYỂN VỊ TRÍ (Transfer)
+// ========================================================
+
+model PhieuChuyenKho {
+  id           String         @id @default(uuid())
+  maPC         String         @unique // PC-202611-001
+  ngayLap      DateTime       @default(now())
+  loaiChuyen   LoaiChuyenKho  @default(NOI_BO_KHO)
+  khoNguonId   String
+  khoDichId    String
+  nguoiLapId   String
+  nguoiDuyetId String?
+  ngayDuyet    DateTime?
+  trangThai    TrangThaiPhieu @default(PENDING)
+  ghiChu       String?
+  ngayTao      DateTime       @default(now())
+  ngayCapNhat  DateTime       @updatedAt
+
+  khoNguon   Kho                @relation("KhoNguon", fields: [khoNguonId], references: [id], onDelete: Restrict)
+  khoDich    Kho                @relation("KhoDich", fields: [khoDichId], references: [id], onDelete: Restrict)
+  nguoiLap   User               @relation("NguoiLapPhieuChuyen", fields: [nguoiLapId], references: [id], onDelete: Restrict)
+  nguoiDuyet User?              @relation("NguoiDuyetPhieuChuyen", fields: [nguoiDuyetId], references: [id], onDelete: SetNull)
+  chiTiet    ChiTietChuyenKho[]
+
+  @@map("phieu_chuyen_kho")
+}
+
+model ChiTietChuyenKho {
+  id            String  @id @default(uuid())
+  phieuChuyenId String
+  hangHoaId     String
+  viTriDiId     String  // Vị trí đi (Ô nguồn lấy hàng)
+  viTriDenId    String  // Vị trí đến (Ô đích cất hàng)
+  slChuyen      Int     // Số lượng chuyển
+  ghiChu        String?
+
+  phieuChuyen PhieuChuyenKho @relation(fields: [phieuChuyenId], references: [id], onDelete: Cascade)
+  hangHoa     HangHoa        @relation(fields: [hangHoaId], references: [id], onDelete: Restrict)
+  viTriDi     ViTriLuuTru    @relation("ViTriDi", fields: [viTriDiId], references: [id], onDelete: Restrict)
+  viTriDen    ViTriLuuTru    @relation("ViTriDen", fields: [viTriDenId], references: [id], onDelete: Restrict)
+
+  @@map("chi_tiet_chuyen_kho")
+}
+
+// ========================================================
+// 8. KIỂM KÊ KHO (Stock Taking / Audit)
+// ========================================================
+
+model PhieuKiemKe {
+  id            String          @id @default(uuid())
+  maPKK         String          @unique // PKK-202611-001
+  ngayKiemKe    DateTime        @default(now())
+  khoId         String
+  nguoiKiemKeId String
+  trangThai     TrangThaiKiemKe @default(DANG_KIEM_KE)
+  ghiChu        String?
+  ngayTao       DateTime        @default(now())
+  ngayCapNhat   DateTime        @updatedAt
+
+  kho         Kho             @relation(fields: [khoId], references: [id], onDelete: Restrict)
+  nguoiKiemKe User            @relation("NguoiKiemKe", fields: [nguoiKiemKeId], references: [id], onDelete: Restrict)
+  chiTiet     ChiTietKiemKe[]
+
+  @@map("phieu_kiem_ke")
+}
+
+model ChiTietKiemKe {
+  id            String      @id @default(uuid())
+  phieuKiemKeId String
+  hangHoaId     String
+  viTriId       String
+  slSoSach      Int         // Tồn trên hệ thống
+  slThucTe      Int         // Tồn thực tế kiểm đếm
+  chenhLech     Int         // slThucTe - slSoSach (+ là thừa, - là thiếu)
+  lyDo          String?     // Ghi chú lý do hao hụt/thừa
+
+  phieuKiemKe PhieuKiemKe @relation(fields: [phieuKiemKeId], references: [id], onDelete: Cascade)
+  hangHoa     HangHoa     @relation(fields: [hangHoaId], references: [id], onDelete: Restrict)
+  viTri       ViTriLuuTru @relation(fields: [viTriId], references: [id], onDelete: Restrict)
+
+  @@map("chi_tiet_kiem_ke")
+}
+
+// ========================================================
+// 9. CẢNH BÁO TỒN KHO & LỊCH SỬ THAO TÁC (Alerts & Audit Logs)
+// ========================================================
+
+model CanhBaoTonKho {
+  id             String           @id @default(uuid())
+  khoId          String
+  hangHoaId      String
+  loaiCanhBao    LoaiCanhBao
+  mucTonHienTai  Int
+  mucTonToiThieu Int
+  mucTonToiDa    Int
+  trangThai      TrangThaiCanhBao @default(CHUA_XU_LY)
+  noiDung        String
+  ngayTao        DateTime         @default(now())
+  ngayXuLy       DateTime?
+
+  kho     Kho     @relation(fields: [khoId], references: [id], onDelete: Cascade)
+  hangHoa HangHoa @relation(fields: [hangHoaId], references: [id], onDelete: Cascade)
+
+  @@map("canh_bao_ton_kho")
+}
+
+model LichSuThaoTac {
+  id            String   @id @default(uuid())
+  nguoiDungId   String?
+  loaiThaoTac   String   // LOGIN, NHAP_KHO, XUAT_KHO, CHUYEN_VI_TRI, KIEM_KE...
+  doiTuong      String   // PhieuNhapKho, PhieuXuatKho, HangHoa, TonKho...
+  doiTuongId    String?
+  noiDung       String   // Diễn giải thao tác
+  duLieuThayDoi Json?    // Snapshot dữ liệu trước/sau thay đổi
+  ipAddress     String?
+  thoiGian      DateTime @default(now())
+
+  nguoiDung User? @relation(fields: [nguoiDungId], references: [id], onDelete: SetNull)
+
+  @@map("lich_su_thao_tac")
+}
