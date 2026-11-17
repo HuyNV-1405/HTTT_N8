@@ -8,7 +8,8 @@ import {
   Warehouse,
   Bell,
   ClipboardList,
-  ChevronLeft
+  ChevronLeft,
+  Users
 } from 'lucide-react';
 import { Role } from '../types';
 
@@ -34,6 +35,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'inventory', label: 'Tra cứu & Sơ đồ Vị trí', icon: Warehouse },
     { id: 'alerts', label: 'Cảnh báo Tồn kho', icon: Bell, badge: alertCount },
     { id: 'audits', label: 'Nhật ký Thao tác', icon: ClipboardList, roles: ['ADMIN', 'QUAN_LY_KHO'] },
+    { id: 'users', label: 'Quản lý Nhân sự', icon: Users, roles: ['ADMIN'] },
   ];
 
   return (
@@ -62,11 +64,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <button
                 key={item.id}
                 onClick={() => setCurrentTab(item.id)}
-                className={`w-full flex items-center justify-between py-2.5 rounded-lg text-xs transition-all cursor-pointer ${
-                  isActive
-                    ? 'bg-red-50 text-red-600 font-bold border-l-4 border-red-600 pl-3 pr-3 shadow-2xs'
-                    : 'text-slate-600 hover:bg-slate-50 hover:text-red-600 font-medium pl-4 pr-3'
-                }`}
+                className={`w-full flex items-center justify-between py-2.5 rounded-lg text-xs transition-all cursor-pointer ${isActive
+                  ? 'bg-red-50 text-red-600 font-bold border-l-4 border-red-600 pl-3 pr-3 shadow-2xs'
+                  : 'text-slate-600 hover:bg-slate-50 hover:text-red-600 font-medium pl-4 pr-3'
+                  }`}
               >
                 <div className="flex items-center gap-3">
                   <Icon className={`w-4 h-4 ${isActive ? 'text-red-600' : 'text-slate-400'}`} />
@@ -83,7 +84,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </nav>
 
       {/* Thanh thu gọn màu đỏ ở góc dưới cùng như trong ảnh */}
-      <div 
+      <div
         title="Thu gọn menu"
         className="h-10 bg-red-600 hover:bg-red-700 text-white flex items-center justify-center cursor-pointer transition-colors shrink-0"
       >

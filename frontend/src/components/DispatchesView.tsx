@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Dispatch, Product, Kho, KhachHang, ViTriLuuTru } from '../types';
+import { Dispatch, Product, Kho, KhachHang, ViTriLuuTru, TonKhoItem } from '../types';
 import {
   ArrowUpRight,
   Plus,
@@ -20,6 +20,7 @@ interface DispatchesViewProps {
   warehouses: Kho[];
   customers: KhachHang[];
   locations: ViTriLuuTru[];
+  inventory?: TonKhoItem[];
   onCreateDispatch: (data: any) => Promise<void>;
   onApproveDispatch: (id: string) => Promise<void>;
   onRejectDispatch: (id: string, lyDo?: string) => Promise<void>;
@@ -32,6 +33,7 @@ export const DispatchesView: React.FC<DispatchesViewProps> = ({
   warehouses,
   customers,
   locations,
+  inventory = [],
   onCreateDispatch,
   onApproveDispatch,
   onRejectDispatch,
@@ -70,18 +72,61 @@ export const DispatchesView: React.FC<DispatchesViewProps> = ({
 
   const availableLocations = locations.filter((l) => !khoId || l.khoId === khoId);
 
+  // Lấy danh sách các vị trí ô kệ thực sự ĐANG CÓ MẶT HÀNG NÀY trong kho đã chọn
+  const getLocationsForProduct = (hangHoaId: string) => {
+    if (!hangHoaId) return [];
+
+    // Tìm tất cả vị trí lưu trữ của mặt hàng này trong kho có số lượng tồn > 0
+    const stockItems = (inventory || []).filter(
+      (inv) =>
+        inv.hangHoaId === hangHoaId &&
+        (!khoId || inv.khoId === khoId) &&
+        inv.soLuongTon > 0
+    );
+
+    return stockItems.map((inv) => ({
+      id: inv.viTriId,
+      maViTri: inv.viTri?.maViTri || inv.viTriId,
+      soLuongTon: inv.soLuongTon,
+      soLuongKhaDung: inv.soLuongKhaDung,
+    }));
+  };
+
+  const handleKhoChange = (newKhoId: string) => {
+    setKhoId(newKhoId);
+    // Cập nhật lại vị trí hợp lệ cho từng dòng theo kho mới
+    const updated = items.map((row) => {
+      const validLocs = (inventory || []).filter(
+        (inv) =>
+          inv.hangHoaId === row.hangHoaId &&
+          (!newKhoId || inv.khoId === newKhoId) &&
+          inv.soLuongTon > 0
+      );
+      return {
+        ...row,
+        viTriId: validLocs.length > 0 ? validLocs[0].viTriId : '',
+      };
+    });
+    setItems(updated);
+  };
+
   const addItemRow = () => {
-    if (products.length === 0 || availableLocations.length === 0) return;
-    const defaultProduct = products[0];
-    const defaultLoc = availableLocations[0];
+    if (products.length === 0) return;
+
+    // Ưu tiên chọn sản phẩm đang CÓ TỒN KHO tại kho hiện tại
+    const prodWithStock = products.find((p) => getLocationsForProduct(p.id).length > 0) || products[0];
+    const validLocs = getLocationsForProduct(prodWithStock.id);
+    const defaultLocId = validLocs.length > 0 ? validLocs[0].id : '';
+    const initialQty = validLocs.length > 0 ? Math.min(5, Math.max(1, validLocs[0].soLuongKhaDung)) : 1;
+
     setItems([
       ...items,
       {
-        hangHoaId: defaultProduct.id,
-        viTriId: defaultLoc.id,
-        slYeuCau: 5,
-        slThucXuat: 5,
-        donGiaXuat: Number(defaultProduct.giaXuat) || 0,
+        hangHoaId: prodWithStock.id,
+        viTriId: defaultLocId,
+        slYeuCau: initialQty,
+        slThucXuat: initialQty,
+        donGiaXuat: Number(prodWithStock.giaXuat) || 0,
       },
     ]);
   };
@@ -93,10 +138,37 @@ export const DispatchesView: React.FC<DispatchesViewProps> = ({
   const updateItemRow = (index: number, field: string, value: any) => {
     const updated = [...items];
     (updated[index] as any)[field] = value;
+
     if (field === 'hangHoaId') {
       const p = products.find((prod) => prod.id === value);
       if (p) updated[index].donGiaXuat = Number(p.giaXuat);
+
+      // KHI ĐỔI SẢN PHẨM: Tự động lọc các vị trí chứa sản phẩm đó và chọn vị trí đầu tiên
+      const validLocs = getLocationsForProduct(value);
+      if (validLocs.length > 0) {
+        updated[index].viTriId = validLocs[0].id;
+        // Đặt số lượng mặc định không vượt quá tồn khả dụng
+        const maxAvail = validLocs[0].soLuongKhaDung;
+        const currentQty = updated[index].slThucXuat || 1;
+        const newQty = maxAvail > 0 ? Math.min(currentQty, maxAvail) : 1;
+        updated[index].slThucXuat = newQty;
+        updated[index].slYeuCau = newQty;
+      } else {
+        updated[index].viTriId = '';
+      }
     }
+
+    if (field === 'viTriId') {
+      const validLocs = getLocationsForProduct(updated[index].hangHoaId);
+      const chosenLoc = validLocs.find((l) => l.id === value);
+      if (chosenLoc && chosenLoc.soLuongKhaDung > 0) {
+        if (updated[index].slThucXuat > chosenLoc.soLuongKhaDung) {
+          updated[index].slThucXuat = chosenLoc.soLuongKhaDung;
+          updated[index].slYeuCau = chosenLoc.soLuongKhaDung;
+        }
+      }
+    }
+
     setItems(updated);
   };
 
@@ -104,6 +176,14 @@ export const DispatchesView: React.FC<DispatchesViewProps> = ({
     e.preventDefault();
     if (items.length === 0) {
       alert('Vui lòng thêm ít nhất 1 mặt hàng vào phiếu xuất');
+      return;
+    }
+
+    // Kiểm tra có dòng nào chưa chọn vị trí hợp lệ hoặc mặt hàng hết tồn
+    const invalidRow = items.find((i) => !i.viTriId);
+    if (invalidRow) {
+      const p = products.find((prod) => prod.id === invalidRow.hangHoaId);
+      alert(`Mặt hàng "${p?.tenHH || 'đã chọn'}" hiện không có vị trí nào còn tồn kho khả dụng để xuất. Vui lòng kiểm tra lại!`);
       return;
     }
 
@@ -494,7 +574,7 @@ export const DispatchesView: React.FC<DispatchesViewProps> = ({
                     <select
                       required
                       value={khoId}
-                      onChange={(e) => setKhoId(e.target.value)}
+                      onChange={(e) => handleKhoChange(e.target.value)}
                       className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 font-medium"
                     >
                       {warehouses.map((w) => (
@@ -554,59 +634,96 @@ export const DispatchesView: React.FC<DispatchesViewProps> = ({
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {items.map((row, idx) => (
-                          <tr key={idx}>
-                            <td className="p-2">
-                              <select
-                                value={row.hangHoaId}
-                                onChange={(e) => updateItemRow(idx, 'hangHoaId', e.target.value)}
-                                className="w-full p-1.5 border border-slate-300 rounded"
-                              >
-                                {products.map((p) => (
-                                  <option key={p.id} value={p.id}>{p.maHH} - {p.tenHH}</option>
-                                ))}
-                              </select>
-                            </td>
-                            <td className="p-2">
-                              <select
-                                value={row.viTriId}
-                                onChange={(e) => updateItemRow(idx, 'viTriId', e.target.value)}
-                                className="w-full p-1.5 border border-slate-300 rounded font-mono"
-                              >
-                                {availableLocations.map((l) => (
-                                  <option key={l.id} value={l.id}>{l.maViTri}</option>
-                                ))}
-                              </select>
-                            </td>
-                            <td className="p-2">
-                              <input
-                                type="number"
-                                min={1}
-                                value={row.slThucXuat}
-                                onChange={(e) => updateItemRow(idx, 'slThucXuat', parseInt(e.target.value) || 1)}
-                                className="w-full p-1.5 border border-slate-300 rounded text-center font-bold"
-                              />
-                            </td>
-                            <td className="p-2">
-                              <input
-                                type="number"
-                                min={0}
-                                value={row.donGiaXuat}
-                                onChange={(e) => updateItemRow(idx, 'donGiaXuat', parseFloat(e.target.value) || 0)}
-                                className="w-full p-1.5 border border-slate-300 rounded text-right"
-                              />
-                            </td>
-                            <td className="p-2 text-center">
-                              <button
-                                type="button"
-                                onClick={() => removeItemRow(idx)}
-                                className="text-slate-400 hover:text-rose-600 p-1 cursor-pointer"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
+                        {items.map((row, idx) => {
+                          const validLocs = getLocationsForProduct(row.hangHoaId);
+                          const selectedLoc = validLocs.find((l) => l.id === row.viTriId);
+                          const isOutOfStock = validLocs.length === 0;
+
+                          return (
+                            <tr key={idx} className={isOutOfStock ? 'bg-amber-50/50' : ''}>
+                              <td className="p-2">
+                                <select
+                                  value={row.hangHoaId}
+                                  onChange={(e) => updateItemRow(idx, 'hangHoaId', e.target.value)}
+                                  className="w-full p-1.5 border border-slate-300 rounded text-slate-800 font-medium text-xs"
+                                >
+                                  {products.map((p) => {
+                                    const pLocs = getLocationsForProduct(p.id);
+                                    const totalAvail = pLocs.reduce((sum, l) => sum + l.soLuongKhaDung, 0);
+                                    return (
+                                      <option key={p.id} value={p.id}>
+                                        {p.maHH} - {p.tenHH} {totalAvail > 0 ? `(Có sẵn ${totalAvail} ${p.donViTinh || ''})` : '(Hết hàng)'}
+                                      </option>
+                                    );
+                                  })}
+                                </select>
+                                {isOutOfStock && (
+                                  <div className="text-[10px] text-amber-700 font-medium mt-0.5">
+                                    ⚠️ Mặt hàng này hiện không có tồn kho tại ô kệ nào.
+                                  </div>
+                                )}
+                              </td>
+                              <td className="p-2">
+                                <select
+                                  required
+                                  value={row.viTriId}
+                                  onChange={(e) => updateItemRow(idx, 'viTriId', e.target.value)}
+                                  className={`w-full p-1.5 border rounded font-mono text-xs ${
+                                    isOutOfStock
+                                      ? 'border-amber-300 bg-amber-50 text-amber-800 font-bold'
+                                      : 'border-slate-300 bg-white text-slate-800'
+                                  }`}
+                                >
+                                  {validLocs.length === 0 ? (
+                                    <option value="" disabled>
+                                      -- Không có ô vị trí chứa hàng --
+                                    </option>
+                                  ) : (
+                                    validLocs.map((l) => (
+                                      <option key={l.id} value={l.id}>
+                                        {l.maViTri} (Khả dụng: {l.soLuongKhaDung} / Tồn: {l.soLuongTon})
+                                      </option>
+                                    ))
+                                  )}
+                                </select>
+                                {selectedLoc && (
+                                  <div className="text-[10px] text-emerald-600 font-semibold mt-0.5">
+                                    ✓ Có sẵn {selectedLoc.soLuongKhaDung} sản phẩm tại ô này
+                                  </div>
+                                )}
+                              </td>
+                              <td className="p-2">
+                                <input
+                                  type="number"
+                                  min={1}
+                                  max={selectedLoc ? selectedLoc.soLuongKhaDung : undefined}
+                                  value={row.slThucXuat}
+                                  onChange={(e) => updateItemRow(idx, 'slThucXuat', parseInt(e.target.value) || 1)}
+                                  className="w-full p-1.5 border border-slate-300 rounded text-center font-bold"
+                                />
+                              </td>
+                              <td className="p-2">
+                                <input
+                                  type="number"
+                                  min={0}
+                                  value={row.donGiaXuat}
+                                  onChange={(e) => updateItemRow(idx, 'donGiaXuat', parseFloat(e.target.value) || 0)}
+                                  className="w-full p-1.5 border border-slate-300 rounded text-right"
+                                />
+                              </td>
+                              <td className="p-2 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => removeItemRow(idx)}
+                                  className="text-slate-400 hover:text-rose-600 p-1 cursor-pointer transition-colors"
+                                  title="Xóa dòng này"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>

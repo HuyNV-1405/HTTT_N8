@@ -12,11 +12,11 @@ router.get('/:id', authenticate, DispatchController.getById);
 // Kiểm tra tồn kho khả dụng trước khi lập phiếu
 router.post('/check-availability', authenticate, DispatchController.checkAvailability);
 
-// Lập phiếu xuất kho (Kinh doanh, Kho, Quản lý, Admin)
+// Lập phiếu xuất kho (Kinh doanh, Mua hàng, Kho, Quản lý, Admin)
 router.post(
   '/',
   authenticate,
-  authorize([Role.ADMIN, Role.QUAN_LY_KHO, Role.NHAN_VIEN_KHO, Role.NHAN_VIEN_BAN_HANG]),
+  authorize([Role.ADMIN, Role.QUAN_LY_KHO, Role.NHAN_VIEN_KHO, Role.NHAN_VIEN_BAN_HANG, Role.NHAN_VIEN_MUA_HANG]),
   DispatchController.create
 );
 

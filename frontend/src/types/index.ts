@@ -11,6 +11,8 @@ export interface User {
   email?: string;
   sdt?: string;
   role: Role;
+  trangThai?: 'ACTIVE' | 'INACTIVE';
+  ngayTao?: string;
 }
 
 export interface LoaiHang {

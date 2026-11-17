@@ -1,18 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import api from './api/client';
-import { 
-  User, 
-  Product, 
-  LoaiHang, 
-  NhaCungCap, 
-  KhachHang, 
-  Kho, 
-  ViTriLuuTru, 
-  TonKhoItem, 
-  Receipt, 
-  Dispatch, 
-  CanhBao, 
-  DashboardStats 
+import {
+  User,
+  Product,
+  LoaiHang,
+  NhaCungCap,
+  KhachHang,
+  Kho,
+  ViTriLuuTru,
+  TonKhoItem,
+  Receipt,
+  Dispatch,
+  CanhBao,
+  DashboardStats
 } from './types';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
@@ -24,6 +24,7 @@ import { TransfersView } from './components/TransfersView';
 import { InventoryView } from './components/InventoryView';
 import { AlertsView } from './components/AlertsView';
 import { AuditsView } from './components/AuditsView';
+import { UsersView } from './components/UsersView';
 import { LoginModal } from './components/LoginModal';
 
 export const App: React.FC = () => {
@@ -46,6 +47,7 @@ export const App: React.FC = () => {
   const [transfers, setTransfers] = useState<any[]>([]);
   const [alerts, setAlerts] = useState<CanhBao[]>([]);
   const [audits, setAudits] = useState<any[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToast({ message, type });
@@ -121,6 +123,11 @@ export const App: React.FC = () => {
         const auditRes = await api.get('/inventory/audits').catch(() => ({ data: { data: [] } }));
         if (auditRes.data.data) setAudits(auditRes.data.data);
       }
+
+      if (currentUser?.role === 'ADMIN') {
+        const usersRes = await api.get('/auth/users').catch(() => ({ data: { data: [] } }));
+        if (usersRes.data.data) setUsers(usersRes.data.data);
+      }
     } catch (err) {
       console.error('Lỗi nạp dữ liệu:', err);
     }
@@ -128,6 +135,9 @@ export const App: React.FC = () => {
 
   useEffect(() => {
     if (currentUser) {
+      if (currentUser.role !== 'ADMIN' && currentTab === 'users') {
+        setCurrentTab('dashboard');
+      }
       fetchAllData();
     }
   }, [currentUser]);
@@ -138,6 +148,14 @@ export const App: React.FC = () => {
     localStorage.setItem('wms_token', res.data.data.token);
     setCurrentUser(res.data.data.user);
     showToast(`Đăng nhập thành công với vai trò: ${res.data.data.user.role}`);
+  };
+
+  const handleRegister = async (registerData: any) => {
+    const res = await api.post('/auth/register', registerData);
+    localStorage.setItem('wms_token', res.data.data.token);
+    setCurrentUser(res.data.data.user);
+    showToast(`Đăng ký thành công! Xin chào ${res.data.data.user.hoTen}`);
+    fetchAllData();
   };
 
   const handleLogout = () => {
@@ -225,6 +243,19 @@ export const App: React.FC = () => {
     fetchAllData();
   };
 
+  // User Management actions (Admin only)
+  const handleCreateUser = async (data: any) => {
+    await api.post('/auth/users', data);
+    showToast('Tạo tài khoản nhân viên mới thành công!');
+    fetchAllData();
+  };
+
+  const handleToggleUserStatus = async (userId: string) => {
+    const res = await api.put(`/auth/users/${userId}/status`);
+    showToast(res.data?.message || 'Cập nhật trạng thái nhân viên thành công!');
+    fetchAllData();
+  };
+
   const canApprove = currentUser?.role === 'ADMIN' || currentUser?.role === 'QUAN_LY_KHO';
   const canManage = currentUser?.role === 'ADMIN' || currentUser?.role === 'QUAN_LY_KHO' || currentUser?.role === 'NHAN_VIEN_MUA_HANG';
   const activeAlertsCount = alerts.filter((a) => a.trangThai === 'CHUA_XU_LY').length;
@@ -233,9 +264,8 @@ export const App: React.FC = () => {
     <div className="flex min-h-screen bg-slate-100 font-sans">
       {/* Toast Notification */}
       {toast && (
-        <div className={`fixed bottom-5 right-5 z-50 px-4 py-3 rounded-xl shadow-xl text-white text-xs font-bold transition-all animate-in slide-in-from-bottom-3 ${
-          toast.type === 'error' ? 'bg-rose-600' : 'bg-slate-900 border border-slate-700'
-        }`}>
+        <div className={`fixed bottom-5 right-5 z-50 px-4 py-3 rounded-xl shadow-xl text-white text-xs font-bold transition-all animate-in slide-in-from-bottom-3 ${toast.type === 'error' ? 'bg-rose-600' : 'bg-slate-900 border border-slate-700'
+          }`}>
           {toast.message}
         </div>
       )}
@@ -260,7 +290,12 @@ export const App: React.FC = () => {
 
         <main className="p-6 max-w-7xl mx-auto w-full flex-1">
           {currentTab === 'dashboard' && (
-            <DashboardView stats={stats} onNavigate={setCurrentTab} />
+            <DashboardView
+              stats={stats}
+              onNavigate={setCurrentTab}
+              userRole={currentUser?.role}
+              userName={currentUser?.hoTen}
+            />
           )}
 
           {currentTab === 'products' && (
@@ -296,6 +331,7 @@ export const App: React.FC = () => {
               warehouses={warehouses}
               customers={customers}
               locations={locations}
+              inventory={inventory}
               onCreateDispatch={handleCreateDispatch}
               onApproveDispatch={handleApproveDispatch}
               onRejectDispatch={handleRejectDispatch}
@@ -336,6 +372,15 @@ export const App: React.FC = () => {
           {currentTab === 'audits' && (
             <AuditsView audits={audits} />
           )}
+
+          {currentTab === 'users' && currentUser?.role === 'ADMIN' && (
+            <UsersView
+              users={users}
+              currentUserId={currentUser?.id}
+              onCreateUser={handleCreateUser}
+              onToggleStatus={handleToggleUserStatus}
+            />
+          )}
         </main>
       </div>
 
@@ -344,6 +389,7 @@ export const App: React.FC = () => {
         isOpen={isLoginOpen}
         onClose={() => setIsLoginOpen(false)}
         onLogin={handleLogin}
+        onRegister={handleRegister}
       />
     </div>
   );
