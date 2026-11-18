@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Kho, Product, ViTriLuuTru } from '../types';
-import { ArrowLeftRight, Plus, CheckCircle2, Clock, FileText, ShieldCheck, MapPin, ArrowRight, X } from 'lucide-react';
+import { ArrowLeftRight, Plus, CheckCircle2, XCircle, Clock, FileText, ShieldCheck, MapPin, ArrowRight, X } from 'lucide-react';
 
 interface TransfersViewProps {
   transfers: any[];
@@ -205,6 +205,10 @@ export const TransfersView: React.FC<TransfersViewProps> = ({
                         {t.trangThai === 'APPROVED' ? (
                           <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
                             <CheckCircle2 className="w-3 h-3" /> Đã hoàn tất chuyển
+                          </span>
+                        ) : t.trangThai === 'REJECTED' ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">
+                            <XCircle className="w-3 h-3" /> Từ chối
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full animate-pulse">

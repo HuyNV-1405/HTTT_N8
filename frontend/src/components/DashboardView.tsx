@@ -8,6 +8,7 @@ import {
   ArrowDownLeft,
   ArrowUpRight,
   CheckCircle2,
+  XCircle,
   Clock,
   ArrowRight,
   ClipboardList,
@@ -246,9 +247,25 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     </div>
                     <div className="text-right">
                       <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full ${
-                        r.trangThai === 'APPROVED' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
+                        r.trangThai === 'APPROVED'
+                          ? 'bg-emerald-50 text-emerald-600'
+                          : r.trangThai === 'REJECTED'
+                          ? 'bg-rose-50 text-rose-600'
+                          : 'bg-amber-50 text-amber-600'
                       }`}>
-                        {r.trangThai === 'APPROVED' ? 'Đã duyệt - Sẵn sàng' : 'Chờ duyệt'}
+                        {r.trangThai === 'APPROVED' ? (
+                          <>
+                            <CheckCircle2 className="w-3 h-3" /> Đã duyệt - Sẵn sàng
+                          </>
+                        ) : r.trangThai === 'REJECTED' ? (
+                          <>
+                            <XCircle className="w-3 h-3" /> Từ chối
+                          </>
+                        ) : (
+                          <>
+                            <Clock className="w-3 h-3" /> Chờ duyệt
+                          </>
+                        )}
                       </span>
                     </div>
                   </div>
@@ -283,9 +300,25 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     </div>
                     <div className="text-right">
                       <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full ${
-                        d.trangThai === 'APPROVED' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
+                        d.trangThai === 'APPROVED'
+                          ? 'bg-emerald-50 text-emerald-600'
+                          : d.trangThai === 'REJECTED'
+                          ? 'bg-rose-50 text-rose-600'
+                          : 'bg-amber-50 text-amber-600'
                       }`}>
-                        {d.trangThai === 'APPROVED' ? 'Đã duyệt - Lấy hàng' : 'Chờ duyệt'}
+                        {d.trangThai === 'APPROVED' ? (
+                          <>
+                            <CheckCircle2 className="w-3 h-3" /> Đã duyệt - Lấy hàng
+                          </>
+                        ) : d.trangThai === 'REJECTED' ? (
+                          <>
+                            <XCircle className="w-3 h-3" /> Từ chối
+                          </>
+                        ) : (
+                          <>
+                            <Clock className="w-3 h-3" /> Chờ duyệt
+                          </>
+                        )}
                       </span>
                     </div>
                   </div>
@@ -502,6 +535,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600">
                           <CheckCircle2 className="w-3 h-3" /> Đã ghi sổ
                         </span>
+                      ) : r.trangThai === 'REJECTED' ? (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-rose-600">
+                          <XCircle className="w-3 h-3" /> Từ chối
+                        </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-600">
                           <Clock className="w-3 h-3" /> Chờ duyệt
@@ -547,6 +584,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       {d.trangThai === 'APPROVED' ? (
                         <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600">
                           <CheckCircle2 className="w-3 h-3" /> Đã trừ kho
+                        </span>
+                      ) : d.trangThai === 'REJECTED' ? (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-rose-600">
+                          <XCircle className="w-3 h-3" /> Từ chối
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-600">

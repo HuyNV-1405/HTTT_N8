@@ -1,6 +1,7 @@
-import React from 'react';
-import { User } from '../types';
+import React, { useState } from 'react';
+import { User, NotificationItem } from '../types';
 import { UserCheck, LogOut, Bell, Building2 } from 'lucide-react';
+import { NotificationDropdown } from './NotificationDropdown';
 
 interface HeaderProps {
   user: User | null;
@@ -8,6 +9,10 @@ interface HeaderProps {
   onLogout: () => void;
   alertCount: number;
   onAlertClick: () => void;
+  notifications?: NotificationItem[];
+  readNotificationIds?: string[];
+  onMarkAllNotificationsRead?: () => void;
+  onSelectNotification?: (item: NotificationItem) => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -16,7 +21,13 @@ export const Header: React.FC<HeaderProps> = ({
   onLogout,
   alertCount,
   onAlertClick,
+  notifications = [],
+  readNotificationIds = [],
+  onMarkAllNotificationsRead,
+  onSelectNotification,
 }) => {
+  const [showNotifications, setShowNotifications] = useState(false);
+  const unreadNotifCount = notifications.filter((n) => !readNotificationIds.includes(n.id)).length;
   const getRoleBadge = (role?: string) => {
     switch (role) {
       case 'ADMIN':
@@ -47,17 +58,34 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Right controls */}
       <div className="flex items-center gap-4">
-        {/* Notification button */}
-        <button
-          onClick={onAlertClick}
-          className="relative p-2 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-          title="Xem cảnh báo tồn kho"
-        >
-          <Bell className="w-5 h-5" />
-          {alertCount > 0 && (
-            <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-red-600 rounded-full ring-2 ring-white animate-pulse" />
-          )}
-        </button>
+        {/* Notification button with dropdown */}
+        <div className="relative">
+          <button
+            onClick={() => setShowNotifications(!showNotifications)}
+            className="relative p-2 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+            title="Xem thông báo duyệt phiếu & yêu cầu"
+          >
+            <Bell className="w-5 h-5" />
+            {(unreadNotifCount > 0 || alertCount > 0) && (
+              <span className="absolute -top-0.5 -right-0.5 bg-red-600 text-white text-[10px] font-bold min-w-4 h-4 px-1 rounded-full flex items-center justify-center ring-2 ring-white animate-pulse">
+                {unreadNotifCount > 0 ? (unreadNotifCount > 9 ? '9+' : unreadNotifCount) : alertCount}
+              </span>
+            )}
+          </button>
+
+          <NotificationDropdown
+            isOpen={showNotifications}
+            onClose={() => setShowNotifications(false)}
+            notifications={notifications}
+            readIds={readNotificationIds}
+            onMarkAllAsRead={onMarkAllNotificationsRead || (() => {})}
+            onSelectNotification={(item) => {
+              if (onSelectNotification) onSelectNotification(item);
+            }}
+            alertCount={alertCount}
+            onViewAlerts={onAlertClick}
+          />
+        </div>
 
         {/* User Account / Role switcher */}
         {user ? (

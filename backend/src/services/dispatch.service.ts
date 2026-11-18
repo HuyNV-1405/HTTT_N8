@@ -13,7 +13,9 @@ export interface CreateDispatchItemDto {
 
 export interface CreateDispatchDto {
   khoId: string;
-  khachHangId: string;
+  khachHangId?: string;
+  tenKhachHangMoi?: string;
+  sdtKhachHangMoi?: string;
   lyDoXuat: string;
   ghiChu?: string;
   items: CreateDispatchItemDto[];
@@ -129,6 +131,33 @@ export class DispatchService {
       throw new Error(`Không đủ hàng tồn kho để xuất: ${thieuHang}`);
     }
 
+    // Xử lý tự điền tên Khách Hàng mới hoặc chọn sẵn
+    let finalKhachHangId = data.khachHangId;
+    if (data.tenKhachHangMoi && data.tenKhachHangMoi.trim()) {
+      const trimmedName = data.tenKhachHangMoi.trim();
+      let existingKH = await prisma.khachHang.findFirst({
+        where: { tenKH: { equals: trimmedName, mode: 'insensitive' } },
+      });
+      if (!existingKH) {
+        const count = await prisma.khachHang.count();
+        const randomNum = Math.floor(100 + Math.random() * 900);
+        const maKH = `KH${count + 1}${randomNum}`;
+        existingKH = await prisma.khachHang.create({
+          data: {
+            maKH,
+            tenKH: trimmedName,
+            sdt: data.sdtKhachHangMoi?.trim() || '0900000000',
+            trangThai: true,
+          },
+        });
+      }
+      finalKhachHangId = existingKH.id;
+    }
+
+    if (!finalKhachHangId) {
+      throw new Error('Vui lòng chọn hoặc tự nhập tên Khách Hàng');
+    }
+
     const maPX = await generateDispatchCode();
 
     let tongTien = 0;
@@ -152,7 +181,7 @@ export class DispatchService {
         data: {
           maPX,
           khoId: data.khoId,
-          khachHangId: data.khachHangId,
+          khachHangId: finalKhachHangId,
           nguoiLapId: userId,
           trangThai: TrangThaiPhieu.PENDING,
           lyDoXuat: data.lyDoXuat,

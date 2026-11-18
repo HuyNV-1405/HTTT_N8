@@ -12,7 +12,8 @@ import {
   Receipt,
   Dispatch,
   CanhBao,
-  DashboardStats
+  DashboardStats,
+  NotificationItem
 } from './types';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
@@ -48,6 +49,8 @@ export const App: React.FC = () => {
   const [alerts, setAlerts] = useState<CanhBao[]>([]);
   const [audits, setAudits] = useState<any[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [readNotifIds, setReadNotifIds] = useState<string[]>([]);
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToast({ message, type });
@@ -91,6 +94,7 @@ export const App: React.FC = () => {
         dispRes,
         transRes,
         alertRes,
+        notifRes,
       ] = await Promise.all([
         api.get('/inventory/dashboard').catch(() => ({ data: { data: null } })),
         api.get('/products').catch(() => ({ data: { data: [] } })),
@@ -104,6 +108,7 @@ export const App: React.FC = () => {
         api.get('/dispatches').catch(() => ({ data: { data: [] } })),
         api.get('/transfers').catch(() => ({ data: { data: [] } })),
         api.get('/inventory/alerts').catch(() => ({ data: { data: [] } })),
+        api.get('/notifications').catch(() => ({ data: { data: [] } })),
       ]);
 
       if (dashboardRes.data.data) setStats(dashboardRes.data.data);
@@ -118,6 +123,7 @@ export const App: React.FC = () => {
       if (dispRes.data.data) setDispatches(dispRes.data.data);
       if (transRes.data.data) setTransfers(transRes.data.data);
       if (alertRes.data.data) setAlerts(alertRes.data.data);
+      if (notifRes.data.data) setNotifications(notifRes.data.data);
 
       if (currentUser?.role === 'ADMIN' || currentUser?.role === 'QUAN_LY_KHO') {
         const auditRes = await api.get('/inventory/audits').catch(() => ({ data: { data: [] } }));
@@ -138,9 +144,37 @@ export const App: React.FC = () => {
       if (currentUser.role !== 'ADMIN' && currentTab === 'users') {
         setCurrentTab('dashboard');
       }
+      const stored = localStorage.getItem(`wms_read_notifs_${currentUser.id}`);
+      if (stored) {
+        try {
+          setReadNotifIds(JSON.parse(stored));
+        } catch {
+          setReadNotifIds([]);
+        }
+      } else {
+        setReadNotifIds([]);
+      }
       fetchAllData();
     }
   }, [currentUser]);
+
+  const handleMarkAllNotificationsRead = () => {
+    if (!currentUser) return;
+    const allIds = notifications.map((n) => n.id);
+    setReadNotifIds(allIds);
+    localStorage.setItem(`wms_read_notifs_${currentUser.id}`, JSON.stringify(allIds));
+    showToast('Đã đánh dấu tất cả thông báo là đã đọc');
+  };
+
+  const handleSelectNotification = (item: NotificationItem) => {
+    if (!currentUser) return;
+    if (!readNotifIds.includes(item.id)) {
+      const updated = [...readNotifIds, item.id];
+      setReadNotifIds(updated);
+      localStorage.setItem(`wms_read_notifs_${currentUser.id}`, JSON.stringify(updated));
+    }
+    setCurrentTab(item.targetTab);
+  };
 
   // Auth actions
   const handleLogin = async (username: string, pass: string) => {
@@ -286,6 +320,10 @@ export const App: React.FC = () => {
           onLogout={handleLogout}
           alertCount={activeAlertsCount}
           onAlertClick={() => setCurrentTab('alerts')}
+          notifications={notifications}
+          readNotificationIds={readNotifIds}
+          onMarkAllNotificationsRead={handleMarkAllNotificationsRead}
+          onSelectNotification={handleSelectNotification}
         />
 
         <main className="p-6 max-w-7xl mx-auto w-full flex-1">

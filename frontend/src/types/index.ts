@@ -208,3 +208,16 @@ export interface DashboardStats {
   };
 }
 
+export interface NotificationItem {
+  id: string;
+  type: 'DISPATCH_APPROVED' | 'DISPATCH_REJECTED' | 'DISPATCH_PENDING' | 'RECEIPT_APPROVED' | 'RECEIPT_REJECTED' | 'RECEIPT_PENDING';
+  title: string;
+  message: string;
+  targetTab: 'dispatches' | 'receipts';
+  targetId: string;
+  targetCode: string;
+  status: string;
+  createdAt: string;
+  actor?: string;
+}
+

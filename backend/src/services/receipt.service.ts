@@ -13,7 +13,9 @@ export interface CreateReceiptItemDto {
 
 export interface CreateReceiptDto {
   khoId: string;
-  nhaCungCapId: string;
+  nhaCungCapId?: string;
+  tenNhaCungCapMoi?: string;
+  sdtNhaCungCapMoi?: string;
   ketQuaKiemTra?: string;
   ghiChu?: string;
   items: CreateReceiptItemDto[];
@@ -72,6 +74,33 @@ export class ReceiptService {
       throw new Error('Phiếu nhập kho phải có ít nhất 1 mặt hàng chi tiết');
     }
 
+    // Xử lý tự điền tên Nhà Cung Cấp mới hoặc chọn sẵn
+    let finalNhaCungCapId = data.nhaCungCapId;
+    if (data.tenNhaCungCapMoi && data.tenNhaCungCapMoi.trim()) {
+      const trimmedName = data.tenNhaCungCapMoi.trim();
+      let existingNCC = await prisma.nhaCungCap.findFirst({
+        where: { tenNCC: { equals: trimmedName, mode: 'insensitive' } },
+      });
+      if (!existingNCC) {
+        const count = await prisma.nhaCungCap.count();
+        const randomNum = Math.floor(100 + Math.random() * 900);
+        const maNCC = `NCC${count + 1}${randomNum}`;
+        existingNCC = await prisma.nhaCungCap.create({
+          data: {
+            maNCC,
+            tenNCC: trimmedName,
+            sdt: data.sdtNhaCungCapMoi?.trim() || '0900000000',
+            trangThai: true,
+          },
+        });
+      }
+      finalNhaCungCapId = existingNCC.id;
+    }
+
+    if (!finalNhaCungCapId) {
+      throw new Error('Vui lòng chọn hoặc tự nhập tên Nhà Cung Cấp');
+    }
+
     const maPN = await generateReceiptCode();
 
     // Tính tổng tiền
@@ -94,7 +123,7 @@ export class ReceiptService {
       data: {
         maPN,
         khoId: data.khoId,
-        nhaCungCapId: data.nhaCungCapId,
+        nhaCungCapId: finalNhaCungCapId,
         nguoiLapId: userId,
         trangThai: TrangThaiPhieu.PENDING,
         ketQuaKiemTra: data.ketQuaKiemTra || 'Đã tiếp nhận và kiểm đếm',
