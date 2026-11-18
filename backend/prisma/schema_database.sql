@@ -221,7 +221,45 @@ CREATE TABLE "chi_tiet_chuyen_kho" (
     "ngayTao" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- 10. BẢNG NHẬT KÝ KIỂM TOÁN (AUDIT TRAIL)
+-- 10. BẢNG KIỂM KÊ KHO & CHI TIẾT KIỂM KÊ (STOCK TAKING & AUDIT)
+CREATE TABLE "phieu_kiem_ke" (
+    "id" TEXT PRIMARY KEY,
+    "maPKK" TEXT UNIQUE NOT NULL,
+    "ngayKiemKe" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "khoId" TEXT NOT NULL REFERENCES "kho"("id") ON DELETE RESTRICT ON UPDATE CASCADE,
+    "nguoiKiemKeId" TEXT NOT NULL REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE,
+    "trangThai" "TrangThaiKiemKe" NOT NULL DEFAULT 'DANG_KIEM_KE',
+    "ghiChu" TEXT,
+    "ngayTao" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "ngayCapNhat" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE "chi_tiet_kiem_ke" (
+    "id" TEXT PRIMARY KEY,
+    "phieuKiemKeId" TEXT NOT NULL REFERENCES "phieu_kiem_ke"("id") ON DELETE CASCADE ON UPDATE CASCADE,
+    "hangHoaId" TEXT NOT NULL REFERENCES "hang_hoa"("id") ON DELETE RESTRICT ON UPDATE CASCADE,
+    "viTriId" TEXT NOT NULL REFERENCES "vi_tri_luu_tru"("id") ON DELETE RESTRICT ON UPDATE CASCADE,
+    "slSoSach" INTEGER NOT NULL,
+    "slThucTe" INTEGER NOT NULL,
+    "chenhLech" INTEGER NOT NULL,
+    "lyDo" TEXT
+);
+
+-- 11. BẢNG CẢNH BÁO TỒN KHO & NHẬT KÝ THAO TÁC (ALERTS & AUDIT TRAIL)
+CREATE TABLE "canh_bao_ton_kho" (
+    "id" TEXT PRIMARY KEY,
+    "khoId" TEXT NOT NULL REFERENCES "kho"("id") ON DELETE CASCADE ON UPDATE CASCADE,
+    "hangHoaId" TEXT NOT NULL REFERENCES "hang_hoa"("id") ON DELETE CASCADE ON UPDATE CASCADE,
+    "loaiCanhBao" "LoaiCanhBao" NOT NULL,
+    "mucTonHienTai" INTEGER NOT NULL,
+    "mucTonToiThieu" INTEGER NOT NULL,
+    "mucTonToiDa" INTEGER NOT NULL,
+    "trangThai" "TrangThaiCanhBao" NOT NULL DEFAULT 'CHUA_XU_LY',
+    "noiDung" TEXT NOT NULL,
+    "ngayTao" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "ngayXuLy" TIMESTAMP(3)
+);
+
 CREATE TABLE "lich_su_thao_tac" (
     "id" TEXT PRIMARY KEY,
     "nguoiDungId" TEXT REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE,
@@ -229,21 +267,7 @@ CREATE TABLE "lich_su_thao_tac" (
     "doiTuong" TEXT NOT NULL,
     "doiTuongId" TEXT,
     "noiDung" TEXT NOT NULL,
-    "duLieuCu" JSONB,
-    "duLieuMoi" JSONB,
+    "duLieuThayDoi" JSONB,
     "ipAddress" TEXT,
     "thoiGian" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
--- 11. BẢNG CẢNH BÁO TỒN KHO
-CREATE TABLE "canh_bao_ton_kho" (
-    "id" TEXT PRIMARY KEY,
-    "khoId" TEXT NOT NULL REFERENCES "kho"("id") ON DELETE CASCADE ON UPDATE CASCADE,
-    "hangHoaId" TEXT NOT NULL REFERENCES "hang_hoa"("id") ON DELETE CASCADE ON UPDATE CASCADE,
-    "loaiCanhBao" "LoaiCanhBao" NOT NULL,
-    "noiDung" TEXT NOT NULL,
-    "mucDo" TEXT NOT NULL DEFAULT 'WARNING',
-    "trangThai" "TrangThaiCanhBao" NOT NULL DEFAULT 'CHUA_XU_LY',
-    "ngayTao" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "ngayXuLy" TIMESTAMP(3)
 );
