@@ -11,7 +11,7 @@ interface HeaderProps {
   onAlertClick: () => void;
   notifications?: NotificationItem[];
   readNotificationIds?: string[];
-  onMarkAllNotificationsRead?: () => void;
+  onMarkAllNotificationsRead?: (silent?: boolean) => void;
   onSelectNotification?: (item: NotificationItem) => void;
 }
 
@@ -61,14 +61,20 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Notification button with dropdown */}
         <div className="relative">
           <button
-            onClick={() => setShowNotifications(!showNotifications)}
+            onClick={() => {
+              const willOpen = !showNotifications;
+              setShowNotifications(willOpen);
+              if (willOpen && unreadNotifCount > 0 && onMarkAllNotificationsRead) {
+                onMarkAllNotificationsRead(true);
+              }
+            }}
             className="relative p-2 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
             title="Xem thông báo duyệt phiếu & yêu cầu"
           >
             <Bell className="w-5 h-5" />
-            {(unreadNotifCount > 0 || alertCount > 0) && (
+            {unreadNotifCount > 0 && (
               <span className="absolute -top-0.5 -right-0.5 bg-red-600 text-white text-[10px] font-bold min-w-4 h-4 px-1 rounded-full flex items-center justify-center ring-2 ring-white animate-pulse">
-                {unreadNotifCount > 0 ? (unreadNotifCount > 9 ? '9+' : unreadNotifCount) : alertCount}
+                {unreadNotifCount > 9 ? '9+' : unreadNotifCount}
               </span>
             )}
           </button>

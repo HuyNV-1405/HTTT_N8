@@ -98,7 +98,7 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
             <div>
               <h3 className="text-sm font-bold leading-tight">Trung Tâm Thông Báo</h3>
               <p className="text-[11px] text-red-100">
-                {unreadCount > 0 ? `${unreadCount} thông báo mới chưa đọc` : 'Không có thông báo mới'}
+                {unreadCount > 0 ? `${unreadCount} thông báo mới chưa đọc` : 'Đã đọc tất cả thông báo'}
               </p>
             </div>
           </div>

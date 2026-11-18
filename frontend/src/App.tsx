@@ -158,12 +158,14 @@ export const App: React.FC = () => {
     }
   }, [currentUser]);
 
-  const handleMarkAllNotificationsRead = () => {
+  const handleMarkAllNotificationsRead = (silent = false) => {
     if (!currentUser) return;
     const allIds = notifications.map((n) => n.id);
     setReadNotifIds(allIds);
     localStorage.setItem(`wms_read_notifs_${currentUser.id}`, JSON.stringify(allIds));
-    showToast('Đã đánh dấu tất cả thông báo là đã đọc');
+    if (!silent) {
+      showToast('Đã đánh dấu tất cả thông báo là đã đọc');
+    }
   };
 
   const handleSelectNotification = (item: NotificationItem) => {
