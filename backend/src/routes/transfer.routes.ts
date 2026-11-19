@@ -22,5 +22,19 @@ router.post(
   TransferController.approve
 );
 
+router.post(
+  '/:id/reject',
+  authenticate,
+  authorize([Role.ADMIN, Role.QUAN_LY_KHO]),
+  TransferController.reject
+);
+
+router.put(
+  '/:id',
+  authenticate,
+  authorize([Role.ADMIN, Role.QUAN_LY_KHO, Role.NHAN_VIEN_KHO]),
+  TransferController.update
+);
+
 export default router;
 

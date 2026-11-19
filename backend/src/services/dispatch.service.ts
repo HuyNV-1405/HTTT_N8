@@ -198,7 +198,7 @@ export class DispatchService {
 
       // Tăng số lượng tạm giữ (soLuongTamGiu) và giảm tồn khả dụng (soLuongKhaDung)
       for (const item of data.items) {
-        await tx.tonKho.update({
+        const stock = await tx.tonKho.findUnique({
           where: {
             khoId_hangHoaId_viTriId: {
               khoId: data.khoId,
@@ -206,11 +206,18 @@ export class DispatchService {
               viTriId: item.viTriId,
             },
           },
-          data: {
-            soLuongTamGiu: { increment: item.slThucXuat },
-            soLuongKhaDung: { decrement: item.slThucXuat },
-          },
         });
+        if (stock) {
+          const newTamGiu = stock.soLuongTamGiu + item.slThucXuat;
+          const newKhaDung = Math.max(0, stock.soLuongTon - newTamGiu);
+          await tx.tonKho.update({
+            where: { id: stock.id },
+            data: {
+              soLuongTamGiu: newTamGiu,
+              soLuongKhaDung: newKhaDung,
+            },
+          });
+        }
       }
 
       await tx.lichSuThaoTac.create({
@@ -273,11 +280,16 @@ export class DispatchService {
         }
 
         // Trừ tồn kho thực tế và giải phóng số lượng tạm giữ
+        const newTon = stock.soLuongTon - item.slThucXuat;
+        const newTamGiu = Math.max(0, stock.soLuongTamGiu - item.slThucXuat);
+        const newKhaDung = Math.max(0, newTon - newTamGiu);
+
         const updatedStock = await tx.tonKho.update({
           where: { id: stock.id },
           data: {
-            soLuongTon: stock.soLuongTon - item.slThucXuat,
-            soLuongTamGiu: Math.max(0, stock.soLuongTamGiu - item.slThucXuat),
+            soLuongTon: newTon,
+            soLuongTamGiu: newTamGiu,
+            soLuongKhaDung: newKhaDung,
           },
         });
 
@@ -374,7 +386,7 @@ export class DispatchService {
     const result = await prisma.$transaction(async (tx) => {
       // Giải phóng số lượng tạm giữ trả về tồn khả dụng
       for (const item of dispatch.chiTiet) {
-        await tx.tonKho.update({
+        const stock = await tx.tonKho.findUnique({
           where: {
             khoId_hangHoaId_viTriId: {
               khoId: dispatch.khoId,
@@ -382,11 +394,18 @@ export class DispatchService {
               viTriId: item.viTriId,
             },
           },
-          data: {
-            soLuongTamGiu: { decrement: item.slThucXuat },
-            soLuongKhaDung: { increment: item.slThucXuat },
-          },
         });
+        if (stock) {
+          const newTamGiu = Math.max(0, stock.soLuongTamGiu - item.slThucXuat);
+          const newKhaDung = Math.max(0, stock.soLuongTon - newTamGiu);
+          await tx.tonKho.update({
+            where: { id: stock.id },
+            data: {
+              soLuongTamGiu: newTamGiu,
+              soLuongKhaDung: newKhaDung,
+            },
+          });
+        }
       }
 
       const updated = await tx.phieuXuatKho.update({

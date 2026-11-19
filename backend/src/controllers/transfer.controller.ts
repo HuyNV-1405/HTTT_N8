@@ -49,5 +49,28 @@ export class TransferController {
       return sendError(res, error.message, 400);
     }
   }
+
+  static async reject(req: Request, res: Response) {
+    try {
+      if (!req.user) return sendError(res, 'Chưa xác thực người dùng', 401);
+      const { id } = req.params;
+      const { lyDo } = req.body;
+      const rejected = await TransferService.rejectTransfer(id, req.user.id, lyDo);
+      return sendSuccess(res, rejected, 'Đã từ chối phiếu chuyển kho thành công');
+    } catch (error: any) {
+      return sendError(res, error.message, 400);
+    }
+  }
+
+  static async update(req: Request, res: Response) {
+    try {
+      if (!req.user) return sendError(res, 'Chưa xác thực người dùng', 401);
+      const { id } = req.params;
+      const updated = await TransferService.updateTransfer(id, req.body, req.user.id);
+      return sendSuccess(res, updated, 'Cập nhật phiếu chuyển kho thành công');
+    } catch (error: any) {
+      return sendError(res, error.message, 400);
+    }
+  }
 }
 

@@ -258,6 +258,18 @@ export const App: React.FC = () => {
     fetchAllData();
   };
 
+  const handleRejectTransfer = async (id: string, lyDo?: string) => {
+    await api.post(`/transfers/${id}/reject`, { lyDo });
+    showToast('Đã từ chối phiếu chuyển kho');
+    fetchAllData();
+  };
+
+  const handleUpdateTransfer = async (id: string, data: any) => {
+    await api.put(`/transfers/${id}`, data);
+    showToast('Đã cập nhật phiếu chuyển kho');
+    fetchAllData();
+  };
+
   // Alert actions
   const handleResolveAlert = async (id: string) => {
     await api.post(`/inventory/alerts/${id}/resolve`);
@@ -385,8 +397,11 @@ export const App: React.FC = () => {
               warehouses={warehouses}
               products={products}
               locations={locations}
+              inventory={inventory}
               onCreateTransfer={handleCreateTransfer}
               onApproveTransfer={handleApproveTransfer}
+              onRejectTransfer={handleRejectTransfer}
+              onUpdateTransfer={handleUpdateTransfer}
               canApprove={canApprove}
             />
           )}

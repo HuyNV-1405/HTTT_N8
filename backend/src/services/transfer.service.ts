@@ -149,11 +149,13 @@ export class TransferService {
         }
 
         // Trừ tại nguồn
+        const newSourceTon = sourceStock.soLuongTon - item.slChuyen;
+        const newSourceKhaDung = Math.max(0, newSourceTon - sourceStock.soLuongTamGiu);
         await tx.tonKho.update({
           where: { id: sourceStock.id },
           data: {
-            soLuongTon: sourceStock.soLuongTon - item.slChuyen,
-            soLuongKhaDung: sourceStock.soLuongKhaDung - item.slChuyen,
+            soLuongTon: newSourceTon,
+            soLuongKhaDung: newSourceKhaDung,
           },
         });
 
@@ -184,11 +186,13 @@ export class TransferService {
         });
 
         if (destStock) {
+          const newDestTon = destStock.soLuongTon + item.slChuyen;
+          const newDestKhaDung = Math.max(0, newDestTon - destStock.soLuongTamGiu);
           await tx.tonKho.update({
             where: { id: destStock.id },
             data: {
-              soLuongTon: destStock.soLuongTon + item.slChuyen,
-              soLuongKhaDung: destStock.soLuongKhaDung + item.slChuyen,
+              soLuongTon: newDestTon,
+              soLuongKhaDung: newDestKhaDung,
             },
           });
         } else {
@@ -231,6 +235,97 @@ export class TransferService {
     });
 
     return result;
+  }
+
+  // TỪ CHỐI DUYỆT PHIẾU CHUYỂN
+  static async rejectTransfer(id: string, userId: string, lyDo?: string) {
+    const transfer = await prisma.phieuChuyenKho.findUnique({ where: { id } });
+    if (!transfer) throw new Error('Không tìm thấy phiếu chuyển kho');
+    if (transfer.trangThai !== TrangThaiPhieu.PENDING) {
+      throw new Error('Chỉ có thể từ chối phiếu đang ở trạng thái Chờ duyệt');
+    }
+
+    const updated = await prisma.phieuChuyenKho.update({
+      where: { id },
+      data: {
+        trangThai: TrangThaiPhieu.REJECTED,
+        nguoiDuyetId: userId,
+        ngayDuyet: new Date(),
+        ghiChu: lyDo ? `${transfer.ghiChu ? transfer.ghiChu + ' ' : ''}[Lý do từ chối: ${lyDo}]` : transfer.ghiChu,
+      },
+    });
+
+    await prisma.lichSuThaoTac.create({
+      data: {
+        nguoiDungId: userId,
+        loaiThaoTac: 'TU_CHOI_CHUYEN_KHO',
+        doiTuong: 'PhieuChuyenKho',
+        doiTuongId: id,
+        noiDung: `Từ chối duyệt phiếu chuyển kho ${transfer.maPC}. Lý do: ${lyDo || 'Không có lý do cụ thể'}`,
+      },
+    });
+
+    return updated;
+  }
+
+  // CHỈNH SỬA PHIẾU CHUYỂN KHI ĐANG PENDING
+  static async updateTransfer(id: string, data: CreateTransferDto, userId: string) {
+    const transfer = await prisma.phieuChuyenKho.findUnique({
+      where: { id },
+      include: { chiTiet: true },
+    });
+    if (!transfer) throw new Error('Không tìm thấy phiếu chuyển kho');
+    if (transfer.trangThai !== TrangThaiPhieu.PENDING) {
+      throw new Error('Chỉ có thể chỉnh sửa phiếu đang ở trạng thái Chờ duyệt');
+    }
+
+    if (!data.items || data.items.length === 0) {
+      throw new Error('Phiếu chuyển kho phải có ít nhất 1 mặt hàng chi tiết');
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      // Xóa chi tiết cũ và tạo lại chi tiết mới
+      await tx.chiTietChuyenKho.deleteMany({
+        where: { phieuChuyenId: id },
+      });
+
+      return tx.phieuChuyenKho.update({
+        where: { id },
+        data: {
+          ghiChu: data.ghiChu,
+          chiTiet: {
+            create: data.items.map((i) => ({
+              hangHoaId: i.hangHoaId,
+              viTriDiId: i.viTriDiId,
+              viTriDenId: i.viTriDenId,
+              slChuyen: i.slChuyen,
+              ghiChu: i.ghiChu,
+            })),
+          },
+        },
+        include: {
+          chiTiet: {
+            include: {
+              hangHoa: true,
+              viTriDi: true,
+              viTriDen: true,
+            },
+          },
+        },
+      });
+    });
+
+    await prisma.lichSuThaoTac.create({
+      data: {
+        nguoiDungId: userId,
+        loaiThaoTac: 'CAP_NHAT_PHIEU_CHUYEN_KHO',
+        doiTuong: 'PhieuChuyenKho',
+        doiTuongId: id,
+        noiDung: `Cập nhật thông tin phiếu chuyển kho ${transfer.maPC}`,
+      },
+    });
+
+    return updated;
   }
 }
 
